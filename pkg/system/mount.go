@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 )
@@ -24,12 +25,15 @@ func IsMounted(path string) (bool, error) {
 }
 
 func MountImage(path, volume, filesystem string) error {
-	var flags uintptr = syscall.MS_NOATIME
+	mount, err := FindPath("mount")
+	if err != nil {
+		return fmt.Errorf("mount tool not found: %w", err)
+	}
 
-	// TODO: Additional mount options
-	data := ""
+	cmd := exec.Command(mount, path, volume)
+	cmd.Stderr = os.Stderr
 
-	if err := syscall.Mount(path, volume, filesystem, flags, data); err != nil {
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to mount '%s': %w", path, err)
 	}
 
