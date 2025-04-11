@@ -1,0 +1,29 @@
+version: '3'
+
+env:
+  BUILD_NAME: mkfs
+
+tasks:
+    default:
+        cmds:
+          - task --list
+        silent: true
+
+    setup:
+        desc: Initialize golang project
+        cmds:
+          - go mod download
+          - go mod tidy
+  
+    build:
+        desc: Build golang executable in ./build
+        cmds:
+          - task: setup
+          - CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-s -w -extldflags "-static"' -trimpath -o ./build/${BUILD_NAME} ./cmd/${BUILD_NAME}/main.go
+
+    run:
+        desc: Run fingerprint operation for plugin
+        cmds:
+          - task: setup
+          - go run cmd/${BUILD_NAME}/main.go fingerprint
+        ignore_error: true
