@@ -5,51 +5,40 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 
-	"github.com/mwantia/nomad-mkfs-host-volume-plugin/pkg/params"
+	"github.com/mwantia/nomad-mkfs-dhv-plugin/pkg/config"
+	"github.com/mwantia/nomad-mkfs-dhv-plugin/pkg/system"
 )
 
-func Create() error {
-	volumesDir := os.Getenv("DHV_VOLUMES_DIR")
-	volumeID := os.Getenv("DHV_VOLUME_ID")
-	capacityMinBytesStr := os.Getenv("DHV_CAPACITY_MIN_BYTES")
-
-	if volumesDir == "" {
+func Create(cfg config.DynamicHostVolumeConfig) error {
+	if cfg.VolumesDir == "" {
 		return fmt.Errorf("variable 'DHV_VOLUMES_DIR' must not be empty")
 	}
-	if volumeID == "" {
+	if cfg.VolumeID == "" {
 		return fmt.Errorf("variable 'DHV_VOLUME_ID' must not be empty")
 	}
 
-	parameters := params.NewDefault()
-	paramsJson := os.Getenv("DHV_PARAMETERS")
-
-	if paramsJson != "" {
-		if err := json.Unmarshal([]byte(paramsJson), &parameters); err != nil {
-			log.Printf("Warning: Unable to parse parameters: %v, using defaults", err)
-		}
+	if cfg.CapacityMinBytes <= 0 {
+		return fmt.Errorf("variable 'DHV_CAPACITY_MIN_BYTES' must be greater than zero")
+	}
+	if cfg.CapacityMinBytes > cfg.CapacityMaxBytes {
+		return fmt.Errorf("variable 'DHV_CAPACITY_MIN_BYTES' can not be greater than 'DHV_CAPACITY_MAX_BYTES'")
 	}
 
-	volumePath := filepath.Join(volumesDir, volumeID)
-	imagePath := fmt.Sprintf("%s.%s", volumePath, parameters.Filesystem)
+	params, err := cfg.GetParams()
+	if err != nil {
+		log.Printf("Warning: Unable to parse parameters, using defaults: %v", err)
+	}
+
+	volumePath := filepath.Join(cfg.VolumesDir, cfg.VolumeID)
+	imagePath := fmt.Sprintf("%s.%s", volumePath, params.FileSystem)
 
 	if err := os.MkdirAll(volumePath, 0o755); err != nil {
 		return fmt.Errorf("failed to create volume directory: %v", err)
 	}
 
-	capacityMinBytes, err := strconv.ParseInt(capacityMinBytesStr, 10, 64)
-	if err != nil {
-		return fmt.Errorf("failed to parse capacity: %v", err)
-	}
-	if capacityMinBytes <= 0 {
-		return fmt.Errorf("minimum capacity must be greater than zero")
-	}
-
-	capacityMB := capacityMinBytes / (1024 * 1024)
+	capacityMB := cfg.CapacityMinBytes / (1024 * 1024)
 	if capacityMB <= 0 {
 		capacityMB = 1 // Ensure at least 1MB
 	}
@@ -57,36 +46,44 @@ func Create() error {
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		log.Printf("Creating filesystem image at %s", imagePath)
 
-		ddCmd := exec.Command("/usr/bin/dd", "if=/dev/zero", "of="+imagePath, "bs=1M", "count="+strconv.FormatInt(capacityMB, 10))
-		ddCmd.Stderr = os.Stderr
-		if err := ddCmd.Run(); err != nil {
-			return fmt.Errorf("failed to create filesystem image: %v", err)
+		file, err := os.Create(imagePath)
+		if err != nil {
+			return fmt.Errorf("failed to create '%s': %w", imagePath, err)
+		}
+		defer file.Close()
+
+		if err := file.Truncate(cfg.CapacityMinBytes); err != nil {
+			return fmt.Errorf("failed to set size for '%s': %w", imagePath, err)
 		}
 
-		mkfsCmd := exec.Command("/usr/sbin/mkfs."+parameters.Filesystem, imagePath)
-		mkfsCmd.Stderr = os.Stderr
-
-		if err := mkfsCmd.Run(); err != nil {
-			return fmt.Errorf("failed to format filesystem: %v", err)
+		zeros := make([]byte, 1024*1024) // 1MB
+		if _, err := file.Write(zeros); err != nil {
+			return fmt.Errorf("failed to initialize '%s': %w", imagePath, err)
 		}
-	} else {
-		log.Printf("Using existing filesystem image at %s", imagePath)
-	}
 
-	if !isMounted(volumePath) {
-		log.Printf("Mounting filesystem at %s", volumePath)
-		mountCmd := exec.Command("/usr/bin/mount", imagePath, volumePath)
-
-		if err := mountCmd.Run(); err != nil {
-			return fmt.Errorf("failed to mount filesystem: %v", err)
+		if err := system.Format(imagePath, params.FileSystem); err != nil {
+			return fmt.Errorf("failed to format '%s' to '%s': %w", imagePath, params.FileSystem, err)
 		}
 	} else {
-		log.Printf("Filesystem already mounted at %s", volumePath)
+		log.Printf("Using existing filesystem image at '%s'", imagePath)
 	}
+
+	mounted, err := system.IsMounted(volumePath)
+	if err != nil {
+		return fmt.Errorf("failed to check mount for '%s': %w", volumePath, err)
+	}
+
+	if !mounted {
+		if err := system.MountImage(imagePath, volumePath, params.FileSystem); err != nil {
+			return fmt.Errorf("failed to mount volume '%s': %w", volumePath, err)
+		}
+	}
+
+	log.Printf("Mounted '%s' at '%s'", imagePath, volumePath)
 
 	fileInfo, err := os.Stat(imagePath)
 	if err != nil {
-		return fmt.Errorf("failed to get filesystem size: %v", err)
+		return fmt.Errorf("failed to get filesystem size: %w", err)
 	}
 	actualBytes := fileInfo.Size()
 
@@ -96,18 +93,9 @@ func Create() error {
 	}
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return fmt.Errorf("failed to marshal response: %v", err)
+		return fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	fmt.Print(string(jsonResponse))
 	return nil
-}
-
-func isMounted(path string) bool {
-	cmd := exec.Command("/usr/bin/mount")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(output), " "+path+" ")
 }

@@ -2,6 +2,7 @@ version: '3'
 
 env:
   BUILD_NAME: mkfs
+  BUILD_ARGS: --tags=viper_bind_struct
 
 tasks:
     default:
@@ -19,7 +20,7 @@ tasks:
         desc: Build golang executable in ./build
         cmds:
           - task: setup
-          - CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-s -w -extldflags "-static"' -trimpath -o ./build/${BUILD_NAME} ./cmd/${BUILD_NAME}/main.go
+          - CGO_ENABLED=0 GOOS=linux go build ${BUILD_ARGS} -a -ldflags '-s -w -extldflags "-static"' -trimpath -o ./build/${BUILD_NAME} ./cmd/${BUILD_NAME}/main.go
 
     test-fingerprint:
         desc: Test fingerprint operation for plugin
@@ -27,7 +28,7 @@ tasks:
           DHV_OPERATION: fingerprint
         cmds:
           - task: setup
-          - go run cmd/${BUILD_NAME}/main.go fingerprint | jq .
+          - go run ${BUILD_ARGS} cmd/${BUILD_NAME}/main.go fingerprint | jq .
         ignore_error: true
 
     test-create:
@@ -46,7 +47,7 @@ tasks:
           DHV_PARAMETERS: ''
         cmds:
           - task: setup
-          - go run cmd/${BUILD_NAME}/main.go create | jq .
+          - go run ${BUILD_ARGS} cmd/${BUILD_NAME}/main.go create | jq .
         ignore_error: true
 
     test-delete:
@@ -64,5 +65,5 @@ tasks:
           DHV_PARAMETERS: ''
         cmds:
           - task: setup
-          - go run cmd/${BUILD_NAME}/main.go delete | jq .
+          - go run ${BUILD_ARGS} cmd/${BUILD_NAME}/main.go delete | jq .
         ignore_error: true

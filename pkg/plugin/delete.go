@@ -1,58 +1,48 @@
 package plugin
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 
-	"github.com/mwantia/nomad-mkfs-host-volume-plugin/pkg/params"
+	"github.com/mwantia/nomad-mkfs-dhv-plugin/pkg/config"
+	"github.com/mwantia/nomad-mkfs-dhv-plugin/pkg/system"
 )
 
-func Delete() error {
-	volumesDir := os.Getenv("DHV_VOLUMES_DIR")
-	volumeID := os.Getenv("DHV_VOLUME_ID")
-	createdPath := os.Getenv("DHV_CREATED_PATH")
-
-	path := createdPath
+func Delete(cfg config.DynamicHostVolumeConfig) error {
+	path := cfg.CreatedPath
 	if path == "" {
-		if volumesDir == "" {
-			return fmt.Errorf("DHV_VOLUMES_DIR must not be empty")
+		if cfg.VolumesDir == "" {
+			return fmt.Errorf("variable 'DHV_VOLUMES_DIR' must not be empty when 'DHV_CREATED_PATH' is not provided")
 		}
-		if volumeID == "" {
-			return fmt.Errorf("DHV_VOLUME_ID must not be empty")
+		if cfg.VolumeID == "" {
+			return fmt.Errorf("variable 'DHV_VOLUME_ID' must not be empty when 'DHV_CREATED_PATH' is not provided")
 		}
 
-		path = filepath.Join(volumesDir, volumeID)
+		path = filepath.Join(cfg.VolumesDir, cfg.VolumeID)
 	}
 
 	log.Printf("Deleting volume at %s", path)
 
-	parameters := params.NewDefault()
-	paramsJson := os.Getenv("DHV_PARAMETERS")
-
-	if paramsJson != "" {
-		if err := json.Unmarshal([]byte(paramsJson), &parameters); err != nil {
-			log.Printf("Warning: Unable to parse parameters: %v, using defaults", err)
-		}
+	mounted, err := system.IsMounted(path)
+	if err != nil {
+		return fmt.Errorf("failed to check mount for '%s': %w", path, err)
 	}
 
-	if isMounted(path) {
-		log.Printf("Unmounting %s", path)
-		umountCmd := exec.Command("/usr/bin/umount", path)
-
-		if err := umountCmd.Run(); err != nil {
-			return fmt.Errorf("failed to unmount: %v", err)
+	if mounted {
+		log.Printf("Unmounting %s...", path)
+		if err := system.UmountImage(path); err != nil {
+			log.Printf("Warning: Unable to unmount '%s': %v", path, err)
 		}
 	}
 
 	if err := os.RemoveAll(path); err != nil {
-		log.Printf("Warning: Failed to remove directory: %v", err)
+		log.Printf("Warning: Failed to remove '%s': %v", path, err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.%s", path, parameters.Filesystem)); err != nil && !os.IsNotExist(err) {
-		log.Printf("Warning: Failed to remove ext4 image: %v", err)
+
+	if err := os.Remove(path + ".img"); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: Failed to remove '%s': %v", path+".img", err)
 	}
 
 	return nil
