@@ -21,9 +21,48 @@ tasks:
           - task: setup
           - CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-s -w -extldflags "-static"' -trimpath -o ./build/${BUILD_NAME} ./cmd/${BUILD_NAME}/main.go
 
-    run:
-        desc: Run fingerprint operation for plugin
+    test-fingerprint:
+        desc: Test fingerprint operation for plugin
+        env:
+          DHV_OPERATION: fingerprint
         cmds:
           - task: setup
-          - go run cmd/${BUILD_NAME}/main.go fingerprint
+          - go run cmd/${BUILD_NAME}/main.go fingerprint | jq .
+        ignore_error: true
+
+    test-create:
+        desc: Test create operation for plugin
+        env:
+          DHV_OPERATION: create
+          DHV_VOLUMES_DIR: /workspace/tmp
+          DHV_PLUGIN_DIR: /workspace/build
+          DHV_NAMESPACE: default
+          DHV_VOLUME_NAME: devcontainer-volume-test
+          DHV_VOLUME_ID: 6abc58bd-a44a-e4ff-af24-2c539bd4cf8a
+          DHV_NODE_ID: 81eb5f69-d943-026c-d596-b1e40b450b89
+          DHV_NODE_POOL: staging
+          DHV_CAPACITY_MIN_BYTES: 1073741824
+          DHV_CAPACITY_MAX_BYTES: 1073741824
+          DHV_PARAMETERS: ''
+        cmds:
+          - task: setup
+          - go run cmd/${BUILD_NAME}/main.go create | jq .
+        ignore_error: true
+
+    test-delete:
+        desc: Test delete operation for plugin
+        env:
+          DHV_OPERATION: delete
+          DHV_CREATED_PATH: '/workspace/tmp/6abc58bd-a44a-e4ff-af24-2c539bd4cf8a'
+          DHV_VOLUMES_DIR: /workspace/tmp
+          DHV_PLUGIN_DIR: /workspace/build
+          DHV_NAMESPACE: default
+          DHV_VOLUME_NAME: devcontainer-volume-test
+          DHV_VOLUME_ID: 6abc58bd-a44a-e4ff-af24-2c539bd4cf8a
+          DHV_NODE_ID: 81eb5f69-d943-026c-d596-b1e40b450b89
+          DHV_NODE_POOL: staging
+          DHV_PARAMETERS: ''
+        cmds:
+          - task: setup
+          - go run cmd/${BUILD_NAME}/main.go delete | jq .
         ignore_error: true
