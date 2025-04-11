@@ -7,7 +7,7 @@ import (
 )
 
 func Format(path, filesystem string) error {
-	lookup, err := exec.LookPath("mkfs." + filesystem)
+	lookup, err := FindPath("mkfs." + filesystem)
 	if err != nil {
 		return fmt.Errorf("formatting tool for '%s' not found: %w", filesystem, err)
 	}
