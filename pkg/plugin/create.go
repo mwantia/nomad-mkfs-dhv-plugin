@@ -32,7 +32,7 @@ func Create(cfg config.DynamicHostVolumeConfig) error {
 	}
 
 	volumePath := filepath.Join(cfg.VolumesDir, cfg.VolumeID)
-	imagePath := fmt.Sprintf("%s.%s", volumePath, params.FileSystem)
+	imagePath := fmt.Sprintf("%s.img", volumePath)
 
 	if err := os.MkdirAll(volumePath, 0o755); err != nil {
 		return fmt.Errorf("failed to create volume directory: %v", err)
@@ -62,6 +62,10 @@ func Create(cfg config.DynamicHostVolumeConfig) error {
 		}
 
 		if err := system.Format(imagePath, params.FileSystem); err != nil {
+			if err := os.Remove(imagePath); err != nil && !os.IsNotExist(err) {
+				log.Printf("Warning: Failed to perform cleanup: %v", err)
+			}
+
 			return fmt.Errorf("failed to format '%s' to '%s': %w", imagePath, params.FileSystem, err)
 		}
 	} else {

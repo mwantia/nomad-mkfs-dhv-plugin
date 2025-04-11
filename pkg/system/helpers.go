@@ -2,7 +2,8 @@ package system
 
 import (
 	"fmt"
-	"os/exec"
+	"log"
+	"os"
 	"path/filepath"
 )
 
@@ -18,10 +19,22 @@ func FindPath(file string) (string, error) {
 
 	for _, path := range paths {
 		full := filepath.Join(path, file)
-		if lookup, err := exec.LookPath(full); err != nil {
-			return lookup, nil
+		log.Println(full)
+		if _, err := os.Stat(full); err == nil {
+			if IsExecutable(full) {
+				return full, nil
+			}
 		}
 	}
 
 	return "", fmt.Errorf("file '%s' not found", file)
+}
+
+func IsExecutable(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir() && (info.Mode()&0o111 != 0)
 }

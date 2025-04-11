@@ -13,7 +13,6 @@ func Format(path, filesystem string) error {
 	}
 
 	cmd := exec.Command(lookup, path)
-	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
