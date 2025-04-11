@@ -6,6 +6,12 @@ A Go implementation of a Nomad Dynamic Host Volume Plugin for HashiCorp Nomad 1.
 
 This plugin enables Nomad to dynamically create and manage filesystem volumes on host machines. It creates volume images as files on the host machine and mounts them for use by Nomad jobs.
 
+> [!IMPORTANT]
+> This plugin is still actively being worked on. \
+> Expect possible changes or reworks of how this plugin functions and how the config is structured.
+>
+> Additionally, this README isn't always up-to-date, so not everything mentioned here might work as described.
+
 ## Features
 
 - Create and mount filesystem images dynamically
