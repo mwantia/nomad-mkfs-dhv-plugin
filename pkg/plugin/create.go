@@ -57,13 +57,13 @@ func Create() error {
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		log.Printf("Creating filesystem image at %s", imagePath)
 
-		ddCmd := exec.Command("dd", "if=/dev/zero", "of="+imagePath, "bs=1M", "count="+strconv.FormatInt(capacityMB, 10))
+		ddCmd := exec.Command("/usr/bin/dd", "if=/dev/zero", "of="+imagePath, "bs=1M", "count="+strconv.FormatInt(capacityMB, 10))
 		ddCmd.Stderr = os.Stderr
 		if err := ddCmd.Run(); err != nil {
 			return fmt.Errorf("failed to create filesystem image: %v", err)
 		}
 
-		mkfsCmd := exec.Command("mkfs."+parameters.Filesystem, imagePath)
+		mkfsCmd := exec.Command("/usr/sbin/mkfs."+parameters.Filesystem, imagePath)
 		mkfsCmd.Stderr = os.Stderr
 
 		if err := mkfsCmd.Run(); err != nil {
@@ -75,7 +75,7 @@ func Create() error {
 
 	if !isMounted(volumePath) {
 		log.Printf("Mounting filesystem at %s", volumePath)
-		mountCmd := exec.Command("mount", imagePath, volumePath)
+		mountCmd := exec.Command("/usr/bin/mount", imagePath, volumePath)
 
 		if err := mountCmd.Run(); err != nil {
 			return fmt.Errorf("failed to mount filesystem: %v", err)
@@ -104,7 +104,7 @@ func Create() error {
 }
 
 func isMounted(path string) bool {
-	cmd := exec.Command("mount")
+	cmd := exec.Command("/usr/bin/mount")
 	output, err := cmd.Output()
 	if err != nil {
 		return false

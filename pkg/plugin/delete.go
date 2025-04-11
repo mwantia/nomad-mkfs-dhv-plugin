@@ -41,7 +41,7 @@ func Delete() error {
 
 	if isMounted(path) {
 		log.Printf("Unmounting %s", path)
-		umountCmd := exec.Command("umount", path)
+		umountCmd := exec.Command("/usr/bin/umount", path)
 
 		if err := umountCmd.Run(); err != nil {
 			return fmt.Errorf("failed to unmount: %v", err)
