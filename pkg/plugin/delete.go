@@ -1,11 +1,14 @@
 package plugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/mwantia/nomad-mkfs-host-volume-plugin/pkg/params"
 )
 
 func Delete() error {
@@ -27,6 +30,15 @@ func Delete() error {
 
 	log.Printf("Deleting volume at %s", path)
 
+	parameters := params.NewDefault()
+	paramsJson := os.Getenv("DHV_PARAMETERS")
+
+	if paramsJson != "" {
+		if err := json.Unmarshal([]byte(paramsJson), &parameters); err != nil {
+			log.Printf("Warning: Unable to parse parameters: %v, using defaults", err)
+		}
+	}
+
 	if isMounted(path) {
 		log.Printf("Unmounting %s", path)
 		umountCmd := exec.Command("umount", path)
@@ -39,7 +51,7 @@ func Delete() error {
 	if err := os.RemoveAll(path); err != nil {
 		log.Printf("Warning: Failed to remove directory: %v", err)
 	}
-	if err := os.Remove(path + ".ext4"); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(fmt.Sprintf("%s.%s", path, parameters.Filesystem)); err != nil && !os.IsNotExist(err) {
 		log.Printf("Warning: Failed to remove ext4 image: %v", err)
 	}
 

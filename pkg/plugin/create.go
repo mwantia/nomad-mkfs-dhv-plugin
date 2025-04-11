@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/mwantia/nomad-mkfs-host-volume-plugin/pkg/params"
 )
 
 func Create() error {
@@ -23,8 +25,17 @@ func Create() error {
 		return fmt.Errorf("variable 'DHV_VOLUME_ID' must not be empty")
 	}
 
+	parameters := params.NewDefault()
+	paramsJson := os.Getenv("DHV_PARAMETERS")
+
+	if paramsJson != "" {
+		if err := json.Unmarshal([]byte(paramsJson), &parameters); err != nil {
+			log.Printf("Warning: Unable to parse parameters: %v, using defaults", err)
+		}
+	}
+
 	volumePath := filepath.Join(volumesDir, volumeID)
-	imagePath := volumePath + ".ext4"
+	imagePath := fmt.Sprintf("%s.%s", volumePath, parameters.Filesystem)
 
 	if err := os.MkdirAll(volumePath, 0o755); err != nil {
 		return fmt.Errorf("failed to create volume directory: %v", err)
@@ -52,7 +63,7 @@ func Create() error {
 			return fmt.Errorf("failed to create filesystem image: %v", err)
 		}
 
-		mkfsCmd := exec.Command("mkfs.ext4", imagePath)
+		mkfsCmd := exec.Command("mkfs."+parameters.Filesystem, imagePath)
 		mkfsCmd.Stderr = os.Stderr
 
 		if err := mkfsCmd.Run(); err != nil {
